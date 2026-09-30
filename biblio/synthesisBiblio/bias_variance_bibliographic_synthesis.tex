@@ -1,28 +1,16 @@
 \documentclass[11pt,a4paper]{article}
 
-\usepackage[margin=2.4cm]{geometry}
 \usepackage[T1]{fontenc}
 \usepackage[utf8]{inputenc}
-\usepackage{lmodern}
-\usepackage{microtype}
-\usepackage{amsmath,amssymb,mathtools}
-\usepackage{booktabs}
-\usepackage{array}
-\usepackage{enumitem}
-\usepackage{xcolor}
-\usepackage{hyperref}
-\usepackage[nameinlink,noabbrev]{cleveref}
+\usepackage{amsmath,amssymb}
+\usepackage[hidelinks]{hyperref}
+\usepackage[left=2cm, right=2cm, top=2cm, bottom=2cm]{geometry}
 
 \hypersetup{
-  colorlinks=true,
-  linkcolor=blue!55!black,
-  citecolor=blue!55!black,
-  urlcolor=blue!65!black,
   pdftitle={Bias, Variance, Model Complexity, and Double Descent},
   pdfauthor={Bibliographic synthesis for TP 1}
 }
 
-\setlist{itemsep=0.25em,topsep=0.4em}
 \newcommand{\ED}{\mathbb{E}_{\mathcal D}}
 \newcommand{\VarD}{\operatorname{Var}_{\mathcal D}}
 \newcommand{\EX}{\mathbb{E}_{X}}
@@ -39,7 +27,7 @@
 \maketitle
 
 \begin{abstract}
-This document consolidates the material needed for the bias-variance practical assignment. It integrates the classical statistical account of Hastie, Tibshirani, and Friedman; the nonparametric and neural-network perspective of Geman, Bienenstock, and Doursat; the modern double-descent account of Belkin and collaborators; and the practical model-selection viewpoint of the scikit-learn documentation. The discussion is self-contained: probability spaces and sources of randomness are stated explicitly, the squared-error decomposition is derived step by step, the special difficulties of zero-one classification loss are explained, and the theory is connected directly to polynomial regression, nearest-neighbor regression, cross-validation, heteroscedastic noise, regularization, and over-parameterized models.
+This document consolidates the material needed for the practical assignment on bias and variance. It integrates the classical statistical account of Hastie, Tibshirani, and Friedman; the nonparametric and neural-network perspective of Geman, Bienenstock, and Doursat; the modern double-descent account of Belkin and collaborators; and the practical model-selection viewpoint of the scikit-learn documentation. The discussion is self-contained: probability spaces and sources of randomness are stated explicitly, the squared-error decomposition is derived step by step, the special difficulties of zero-one classification loss are explained, and the theory is connected directly to polynomial regression, nearest-neighbor regression, cross-validation, heteroscedastic noise, regularization, and over-parameterized models.
 \end{abstract}
 
 \tableofcontents
@@ -172,7 +160,7 @@ It is irreducible relative to predicting the random response $Y$ with a determin
 \subsection{Integrated or average risk}
 
 If test inputs are also random, average 
-\cref{eq:bv-pointwise} over $P_X$:
+equation~\eqref{eq:bv-pointwise} over $P_X$:
 \begin{equation}
   \mathbb E_X[\operatorname{Err}(X)]
   =\mathbb E_X[\operatorname{Bias}^2(X)]
@@ -225,12 +213,50 @@ Averaging over a uniform grid yields
   \widehat V&=\frac{1}{J}\sum_{j=1}^{J}
       \widehat{\operatorname{Var}}(x_j).
 \end{align}
-To estimate total test error, draw fresh test noises $\varepsilon_j^{(m)}$ and compute
+The total test error is the expected squared error on a new response, averaged over the random training set, the test input, and a fresh test noise:
+\begin{align*}
+  E_{\mathrm{test}}
+  &=\mathbb E_{\mathcal D,X,\varepsilon}
+    \left[\left(Y-\widehat f_{\mathcal D}(X)\right)^2\right]\\
+  &=\mathbb E_{\mathcal D,X,\varepsilon}
+    \left[\left(f(X)+\varepsilon-
+    \widehat f_{\mathcal D}(X)\right)^2\right].
+\end{align*}
+This expression contains three expectations. Each is replaced by a finite Monte Carlo average in the experiment.
+
+First, the expectation over possible training sets is approximated by fitting $M$ models on $M$ independently drawn datasets:
+\begin{align*}
+  E_{\mathrm{test}}
+  &\approx \frac{1}{M}\sum_{m=1}^{M}
+  \mathbb E_{X,\varepsilon}
+  \left[\left(f(X)+\varepsilon-
+  \widehat f^{(m)}(X)\right)^2\right].
+\end{align*}
+Second, the expectation over a uniformly distributed test input is approximated by the arithmetic mean over the $J$ points of the uniform grid:
+\begin{align*}
+  E_{\mathrm{test}}
+  &\approx \frac{1}{MJ}\sum_{m=1}^{M}\sum_{j=1}^{J}
+  \mathbb E_{\varepsilon}
+  \left[\left(f(x_j)+\varepsilon-
+  \widehat f^{(m)}(x_j)\right)^2\right].
+\end{align*}
+Finally, for every model-grid pair $(m,j)$, draw an independent fresh test noise
+\[
+  \varepsilon_j^{(m)}\sim\mathcal N(0,\sigma^2)
+\]
+and define the corresponding new test response as
+\[
+  Y_j^{(m)}=f(x_j)+\varepsilon_j^{(m)}.
+\]
+Replacing the remaining noise expectation by this Monte Carlo draw gives
 \begin{equation}
   \widehat E_{\mathrm{test}}
   =\frac{1}{MJ}\sum_{m=1}^{M}\sum_{j=1}^{J}
   \left(f(x_j)+\varepsilon_j^{(m)}-\widehat f^{(m)}(x_j)\right)^2.
+  \label{eq:mc-test-error}
 \end{equation}
+Thus, equation~\eqref{eq:mc-test-error} is simply the mean of the $M\times J$ squared errors between fresh noisy test responses and their corresponding predictions. The noise must be fresh and independent of the training noise. If it were omitted, the quantity would estimate only squared bias plus variance and would not include irreducible noise.
+
 The empirical identity will not hold exactly because all quantities are Monte Carlo estimates. A useful signed relative discrepancy is
 \begin{equation}
   \Delta_{\mathrm{rel}}
@@ -258,7 +284,7 @@ This is a tendency, not a theorem that every bias curve must decrease monotonica
 
 For polynomial regression, degree is a simple flexibility parameter. A low degree may be unable to approximate an oscillatory $f$, producing high bias and relatively stable fitted curves. A high degree can interpolate or nearly interpolate a small noisy sample; small changes in the sample may then cause large changes between observed points, especially near boundaries. That is high variance.
 
-High-degree monomials are also numerically ill-conditioned. Consequently, an extreme curve may reflect both statistical variance and numerical instability. Rescaling inputs, using an orthogonal polynomial basis, or applying ridge regularization can improve numerical behavior. Such changes do not alter the conceptual decomposition, but they can alter the actual learning algorithm and therefore its measured bias and variance.
+Monomial bases at high degree are often numerically ill conditioned. An extreme curve may therefore reflect both statistical variance and numerical instability. Rescaling inputs, using an orthogonal polynomial basis, or applying ridge regularization can improve numerical behavior. Such changes do not alter the conceptual decomposition, but they can alter the actual learning algorithm and therefore its measured bias and variance.
 
 \subsection{Nearest-neighbor regression}
 
@@ -347,7 +373,7 @@ To verify it, consider separately $\eta(x)\geq 1/2$ and $\eta(x)<1/2$. If $g$ ag
 
 \subsection{Why the regression identity does not carry over}
 
-The derivation in \cref{sec:decomposition} works because a square can be expanded and centered, making cross terms vanish. The indicator loss has no analogous quadratic expansion. Two consequences follow:
+The derivation in Section~\ref{sec:decomposition} works because a square can be expanded and centered, making cross terms vanish. The indicator loss has no analogous quadratic expansion. Two consequences follow:
 \begin{enumerate}
   \item A probability estimate can have sizable squared bias without changing the class decision. If $\eta(x)=0.9$ and the mean estimate is $0.6$, the probability estimate is biased, but both values imply class 1.
   \item Variability matters mainly when it causes predictions to cross the decision boundary. The interaction between the mean prediction, its dispersion, and the distance from $1/2$ is essential.
@@ -381,7 +407,7 @@ These interventions may increase bias. The goal is not to minimize variance alon
   \item Use a richer hypothesis class: increase polynomial degree, add relevant transformations or interactions, decrease $k$ in $k$-NN, or use a more expressive architecture.
   \item Weaken regularization when it prevents the model from capturing genuine structure.
   \item Improve features or representation so that the target function becomes simpler in the chosen coordinates.
-  \item Optimize sufficiently well; an undertrained model can exhibit optimization-induced systematic error that resembles statistical bias.
+  \item Optimize sufficiently well. Insufficient training can cause systematic error that resembles statistical bias.
 \end{itemize}
 
 Reducing bias may increase variance. The effect of any lever must therefore be checked on independent data or by a correctly nested validation procedure.
@@ -431,7 +457,7 @@ For neural networks, optimization can impose implicit regularization: among many
 
 \subsection{What double descent does and does not contradict}
 
-Double descent does \emph{not} contradict the algebraic identity in \cref{eq:bv-pointwise}. For squared loss, the identity remains true for every degree or parameter count. What fails is the extra heuristic that variance must grow monotonically with raw capacity or that every interpolating model must generalize poorly.
+Double descent does \emph{not} contradict the algebraic identity in equation~\eqref{eq:bv-pointwise}. For squared loss, the identity remains true for every degree or parameter count. What fails is the extra heuristic that variance must grow monotonically with raw capacity or that every interpolating model must generalize poorly.
 
 It is also unsafe to claim that larger models are always better. The second descent is an empirical pattern observed for important model-algorithm-data combinations, not a universal guarantee. Noise level, sample size, regularization, optimization, and the chosen capacity axis all matter. The interpolation peak can be narrow and may be hidden by coarse parameter grids or early stopping.
 
@@ -488,7 +514,12 @@ If quantities are averaged over a uniform test grid, the corresponding average n
   &=\frac{31}{12}\sigma^2.
   \label{eq:uniform-hetero-noise}
 \end{align}
-If test inputs instead follow Beta$(2,5)$, the correct average is $\mathbb E_{X\sim\mathrm{Beta}(2,5)}[\sigma^2(0.5+2X)^2]$, which is different. Using $\mathbb E[X]=2/7$ and $\mathbb E[X^2]=2\cdot3/(7\cdot8)=3/28$ gives
+If test inputs instead follow Beta$(2,5)$, the correct average is
+\[
+  \mathbb E_{X\sim\mathrm{Beta}(2,5)}
+  \left[\sigma^2(0.5+2X)^2\right],
+\]
+which is different. Using $\mathbb E[X]=2/7$ and $\mathbb E[X^2]=2\cdot3/(7\cdot8)=3/28$ gives
 \begin{align}
   \mathbb E[\sigma^2(X)]
   &=\sigma^2\left(0.25+2\mathbb E[X]+4\mathbb E[X^2]\right)\\
@@ -499,7 +530,7 @@ This calculation illustrates why the test distribution must be stated.
 
 \section{Model variance, ensembles, and predictive uncertainty}
 
-The variance term in \cref{eq:bv-pointwise} measures how much the fitted mean prediction changes when the training set changes. It is related to epistemic or sampling uncertainty, but it is not a complete predictive-uncertainty measure.
+The variance term in equation~\eqref{eq:bv-pointwise} measures how much the fitted mean prediction changes when the training set changes. It is related to epistemic or sampling uncertainty, but it is not a complete predictive-uncertainty measure.
 
 For a future outcome, uncertainty includes at least:
 \begin{equation}
@@ -518,30 +549,20 @@ This explains bagging: averaging reduces the uncorrelated portion of variance, b
 \section{Comparison of the sources}
 \label{sec:sources}
 
-\begin{table}[htbp]
-\centering
-\small
-\begin{tabular}{>{\raggedright\arraybackslash}p{2.7cm}
-                >{\raggedright\arraybackslash}p{2.7cm}
-                >{\raggedright\arraybackslash}p{4.0cm}
-                >{\raggedright\arraybackslash}p{4.0cm}}
-\toprule
-Source & Nature and date & Main contribution here & Reliability and limitation \\
-\midrule
-Hastie, Tibshirani, Friedman & Reference textbook, 2nd ed., 2009 & Exact squared-loss decomposition; model assessment; zero-one-loss warning; cross-validation & Authoritative scholarly synthesis. Classical framework predates the modern double-descent literature. \\
-\addlinespace
-Geman, Bienenstock, Doursat & Peer-reviewed journal article, 1992 & Nonparametric estimation; sample-size dependence; smoothing, regularization, and representation & Foundational and mathematically careful. Its conclusions about neural networks are historically situated. \\
-\addlinespace
-Belkin, Hsu, Ma, Mandal & Peer-reviewed research article, 2019 & Interpolation threshold; double descent; minimum-norm and implicit inductive bias & Primary modern evidence and a unifying proposal, not a theorem that every learning system exhibits double descent. \\
-\addlinespace
-scikit-learn documentation & Maintained pedagogical and technical documentation, accessed 2026 & Concrete underfitting, overfitting, learning curves, validation curves, and practical levers & Official and reproducible, but not a peer-reviewed theoretical source. \\
-\addlinespace
-Domingos & Peer-reviewed conference paper, 2000 & Loss-dependent generalization of bias and variance, including zero-one loss & Directly addresses the classification nuance; definitions differ from ordinary squared bias and variance. \\
-\bottomrule
-\end{tabular}
-\caption{Roles and limitations of the sources used in this synthesis.}
-\label{tab:sources}
-\end{table}
+\paragraph{Hastie, Tibshirani, and Friedman (2009).}
+A reference textbook used here for the exact squared-loss decomposition, model assessment, the zero-one-loss warning, and cross-validation. It is an authoritative scholarly synthesis, although its classical framework predates the modern double-descent literature.
+
+\paragraph{Geman, Bienenstock, and Doursat (1992).}
+A peer-reviewed journal article used for nonparametric estimation, sample-size dependence, smoothing, regularization, and representation. It is foundational and mathematically careful, but its conclusions about neural networks are historically situated.
+
+\paragraph{Belkin, Hsu, Ma, and Mandal (2019).}
+A peer-reviewed research article used for the interpolation threshold, double descent, minimum-norm solutions, and implicit inductive bias. It provides primary modern evidence and a unifying proposal, not a theorem that every learning system exhibits double descent.
+
+\paragraph{scikit-learn documentation (accessed 2026).}
+Maintained pedagogical and technical documentation used for concrete accounts of underfitting, overfitting, learning curves, validation curves, and practical levers. It is official and reproducible, but it is not a peer-reviewed theoretical source.
+
+\paragraph{Domingos (2000).}
+A peer-reviewed conference paper used for the loss-dependent generalization of bias and variance, including zero-one loss. It directly addresses the classification nuance, but its definitions differ from ordinary squared bias and variance.
 
 \subsection{Two important differences among the sources}
 
@@ -556,7 +577,7 @@ Hastie et al. show that classification error is not the sum of squared bias and 
 
 \subsection*{1. What is the decomposition at a point $x$, and which term is irreducible?}
 
-Under \cref{eq:data-model} and squared loss,
+Under equation~\eqref{eq:data-model} and squared loss,
 \begin{equation*}
   \mathbb E_{\mathcal D,\varepsilon}
   [(Y-\widehat f_{\mathcal D}(x))^2\mid X=x]
@@ -587,7 +608,7 @@ To reduce variance: increase the amount of relevant training data; strengthen sm
 
 \begin{description}
   \item[Exercise 1:] Treat the collection of fitted curves as an empirical distribution of $\widehat f_{\mathcal D}(x)$. Their center visualizes bias; their spread visualizes variance.
-  \item[Exercise 2:] Implement \cref{eq:mcvar} and verify the averaged version of \cref{eq:bv-pointwise}. Use independent test noise and report a relative discrepancy.
+  \item[Exercise 2:] Implement equation~\eqref{eq:mcvar} and verify the averaged version of equation~\eqref{eq:bv-pointwise}. Use independent test noise and report a relative discrepancy.
   \item[Exercise 3:] Explain changes in the optimal degree through the stabilizing effect of larger $n$. Do not assume the degree must change monotonically in every finite simulation.
   \item[Exercise 4:] For $k$-NN, smaller $k$ means greater effective complexity. This direction is opposite to polynomial degree.
   \item[Exercise 5:] Cross-validation estimates total risk from one dataset. The distribution of selected degrees measures selection instability, not bias or variance directly.
@@ -605,7 +626,7 @@ To reduce variance: increase the amount of relevant training data; strengthen sm
   \item Treating $k$ as increasing complexity in $k$-NN. Larger $k$ means more smoothing and usually lower complexity.
   \item Claiming that degree 15 alone demonstrates double descent. A second descent must actually be observed beyond interpolation.
   \item Equating low model variance with complete predictive certainty.
-  \item Performing preprocessing or supervised selection before cross-validation instead of inside each fold.
+  \item Applying supervised preprocessing before cross-validation rather than separately inside each fold.
   \item Reporting only a selected hyperparameter without uncertainty, the validation curve, or its frequency across repeated datasets.
 \end{enumerate}
 
