@@ -33,6 +33,7 @@ env/
 *.synctex.gz
 *.toc
 *.vrb
+*.log
 
 # Editor and OS files
 .DS_Store
