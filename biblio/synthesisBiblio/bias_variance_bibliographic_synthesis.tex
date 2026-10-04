@@ -4,7 +4,6 @@
 \usepackage[utf8]{inputenc}
 \usepackage{amsmath,amssymb}
 \usepackage[hidelinks]{hyperref}
-\usepackage[left=2cm, right=2cm, top=2cm, bottom=2cm]{geometry}
 
 \hypersetup{
   pdftitle={Bias, Variance, Model Complexity, and Double Descent},
@@ -75,13 +74,60 @@ usually modeled as an independent sample from $P$. A learning algorithm $A$ maps
 \end{equation}
 Even if $A$ is deterministic, $\widehat f_{\mathcal D}$ is random because $\mathcal D$ is random. If the algorithm itself uses randomness, such as random initialization, stochastic feature selection, or bootstrap resampling, that randomness can either be included in $\mathcal D$ symbolically or represented by a separate random variable. The practical assignment mainly studies randomness caused by drawing new training sets.
 
+It is useful to distinguish a \emph{learning procedure} from one fitted model. The procedure is the complete rule ``receive a dataset of size $n$, preprocess it, choose any hyperparameters, and fit a predictor.'' Before data are collected, its output $\widehat f_{\mathcal D}$ is random. After one observed dataset $\mathcal D_{\mathrm{obs}}$ has been supplied, the fitted function $\widehat f_{\mathcal D_{\mathrm{obs}}}$ is fixed, apart from any remaining algorithmic randomness. Bias and variance describe the procedure over possible datasets, not merely the curve obtained from the one dataset that happened to be observed.
+
+\subsection{Loss, empirical error, and risk}
+
+A loss function measures the cost of one prediction. Under squared loss,
+\begin{equation}
+  L_{2}(y,\widehat y)=(y-\widehat y)^2,
+\end{equation}
+whereas binary zero-one loss is
+\begin{equation}
+  L_{01}(y,g(x))=\ind\{y\neq g(x)\}.
+\end{equation}
+The latter is either zero or one for a single observation. A \emph{risk} is an expected loss under a population distribution. For example,
+\begin{equation}
+  \R_{01}(g)
+  =\mathbb E_{X,Y}[L_{01}(Y,g(X))]
+  =\Pr(Y\neq g(X)).
+\end{equation}
+Thus loss concerns one outcome, while risk concerns the long-run average over possible outcomes. From a finite sample one computes an empirical risk,
+\begin{equation}
+  \widehat{\R}_{01}(g)
+  =\frac{1}{n}\sum_{i=1}^{n}L_{01}(Y_i,g(X_i)),
+\end{equation}
+which estimates the unknown population risk. The phrase \emph{test error} often denotes the same finite-sample average on a held-out test set; in informal writing it is sometimes also used for the population risk, so the surrounding expectation should always be checked.
+
+Risk can be conditional or integrated. At a fixed input $x$,
+\begin{equation}
+  \R(g\mid x)=\mathbb E[L(Y,g(x))\mid X=x].
+\end{equation}
+Averaging this quantity over future inputs gives the integrated risk
+\begin{equation}
+  \R(g)=\mathbb E_X[\R(g\mid X)].
+\end{equation}
+This distinction between a lowercase fixed $x$ and a random uppercase $X$ recurs throughout the document.
+
 \subsection{Three different expectations that must not be confused}
 
-At a fixed test input $x$, three random mechanisms may appear:
+An expectation is shorthand for a repeated random experiment. The subscript under $\mathbb E$ states which parts of that experiment are repeated. Three random mechanisms may appear:
 \begin{description}
-  \item[Training-set randomness:] redraw $\mathcal D$, refit the model, and observe a different $\widehat f_{\mathcal D}(x)$. Bias and variance use this distribution.
-  \item[Test-noise randomness:] even at the same $x$, a new response is $Y=f(x)+\varepsilon$. The random $\varepsilon$ creates irreducible error.
-  \item[Test-input randomness:] for global prediction risk, also average over $X\sim P_X$. A pointwise decomposition at $x$ does not yet include this average.
+  \item[Training-set randomness:] draw a new dataset $\mathcal D$ of the same fixed size from the same population, repeat every data-dependent modeling step, and evaluate the resulting $\widehat f_{\mathcal D}(x)$. Bias and model variance use this distribution.
+  \item[Test-noise randomness:] even at a fixed $x$, a new response is $Y=f(x)+\varepsilon_{\mathrm{test}}$. A fresh $\varepsilon_{\mathrm{test}}$ creates irreducible outcome uncertainty and must be independent of the training noises.
+  \item[Test inputs:] for population-wide performance, also draw $X_{\mathrm{test}}\sim P_X$. A pointwise calculation at one fixed $x$ does not include this average.
+\end{description}
+
+Consider the assignment's procedure ``draw $n=30$ observations and fit a degree-five polynomial.'' At $x=0.7$, repeated training sets might produce predictions $1.10$, $0.91$, $1.27$, and $1.02$. Their center and spread concern randomness in $\mathcal D$. A new response at the same input is $f(0.7)+\varepsilon_{\mathrm{test}}$; its additional fluctuation concerns test noise. If the application asks for average performance over future individuals, $0.7$ is no longer fixed and a new $X_{\mathrm{test}}$ is drawn as well.
+
+The same probability model applies to real data even though the repetitions are not physically available. Before collection, another sample of $n$ individuals would have produced another dataset and another fitted predictor. After the actual dataset $\mathcal D_{\mathrm{obs}}$ has been observed and the model has been fitted, one may instead condition on that fixed dataset and study only future $(X_{\mathrm{test}},Y_{\mathrm{test}})$. Simulations make all of these repetitions observable; real applications generally provide only one realization of the training set.
+
+The relevant random quantities can therefore be summarized as follows:
+\begin{description}
+  \item[Pointwise bias and variance:] fix $x$ and $f$; redraw $\mathcal D$ and refit the complete procedure.
+  \item[Pointwise total test error:] fix $x$ and $f$; redraw $\mathcal D$ and an independent $\varepsilon_{\mathrm{test}}$.
+  \item[Integrated risk of the procedure:] redraw $\mathcal D$, $X_{\mathrm{test}}$, and the corresponding test response noise.
+  \item[Risk of one already fitted model:] condition on $\mathcal D_{\mathrm{obs}}$; average only over future test inputs and responses.
 \end{description}
 
 Hastie et al. use $\mathcal T$ for the training set in parts of Chapter 7, whereas the assignment and this document use $\mathcal D$. These are not different concepts. Geman et al. write a fitted rule as $f(x;\mathcal D)$; here it is written $\widehat f_{\mathcal D}(x)$ to distinguish the unknown truth $f$ from its estimate.
@@ -91,7 +137,12 @@ Hastie et al. use $\mathcal T$ for the training set in parts of Chapter 7, where
 
 \subsection{Definitions at a fixed input}
 
-Fix $X=x$. Define the mean prediction of the learning procedure over possible training sets by
+Fix $X=x$. Imagine drawing many independent training sets of the same size and applying exactly the same learning procedure to each one. Even though the input $x$ is unchanged, the predictions generally differ:
+\begin{equation*}
+  \widehat f_{\mathcal D_1}(x),\quad
+  \widehat f_{\mathcal D_2}(x),\quad\ldots
+\end{equation*}
+For example, at $x=0.7$ repeated degree-five fits might give $1.10$, $0.91$, $1.27$, and $1.02$. These values form a sampling distribution of the fitted prediction. Define its center by
 \begin{equation}
   m(x)=\ED\left[\widehat f_{\mathcal D}(x)\right].
 \end{equation}
@@ -107,6 +158,16 @@ and the pointwise variance is
   =\ED\left[\left(\widehat f_{\mathcal D}(x)-m(x)\right)^2\right].
 \end{equation}
 Bias can be positive or negative, while squared bias and variance are nonnegative.
+
+These definitions separate two questions. First, is the center of the fitted predictions close to the truth? This is measured by bias. Second, do the fitted predictions change substantially when the sample changes? This is measured by variance. A procedure can be stably wrong, producing high bias and low variance, or centered correctly but highly unstable, producing low bias and high variance.
+
+Model variance must not be confused with outcome-noise variance:
+\begin{equation}
+  \underbrace{\VarD(\widehat f_{\mathcal D}(x))}_{\text{variation across fitted models}}
+  \neq
+  \underbrace{\operatorname{Var}(Y\mid X=x)}_{\text{variation of outcomes at fixed }x}.
+\end{equation}
+The first could in principle be reduced by a more stable learning procedure or more data. The second remains even if the regression function $f$ were known exactly.
 
 \subsection{Complete derivation}
 
@@ -184,8 +245,22 @@ Then one can conceptually distinguish
 \end{itemize}
 Under suitable orthogonality conditions, as in population least-squares projection, their integrated squared contributions add. In general, expanding a square also produces a cross term, so the conditions behind any claimed additive sub-decomposition should be checked.
 
+For example, fitting a straight line to a strongly oscillatory truth creates approximation bias because no member of the linear class can reproduce the oscillations. Fitting a sufficiently rich polynomial with a strong ridge penalty can create estimation bias even if the unpenalized class contains a good approximation: the fitting rule deliberately shrinks the solution away from the best unpenalized coefficients. The ordinary bias $m(x)-f(x)$ combines both effects unless an additional decomposition and its assumptions are stated.
+
 \section{How the decomposition is estimated in the practical assignment}
 \label{sec:monte-carlo}
+
+The practical assignment makes the otherwise hypothetical repetitions observable because the data-generating function is known. Conceptually, the computation follows seven steps:
+\begin{enumerate}
+  \item draw $M$ independent training sets of the same size;
+  \item refit the chosen learning procedure on every dataset;
+  \item evaluate every fitted model at the same $J$ test inputs;
+  \item at each input, compute the center and spread of the $M$ predictions;
+  \item compare the center with the known $f(x)$ to estimate squared bias;
+  \item generate fresh noisy test responses, independently of all training noises, to estimate total test error;
+  \item average pointwise quantities over the requested test-input distribution.
+\end{enumerate}
+This sequence should be kept conceptually separate even if an implementation combines several operations in arrays.
 
 Suppose $M$ independent training sets produce predictions
 \begin{equation}
@@ -269,6 +344,19 @@ and an unsigned reporting measure is $|\Delta_{\mathrm{rel}}|$. The discrepancy 
 \section{Complexity, underfitting, and overfitting}
 \label{sec:complexity}
 
+\subsection{What capacity means}
+
+Model \emph{capacity}, \emph{flexibility}, or \emph{expressiveness} refers to the range of input-output relations that a learning procedure can represent or select. A low-capacity class contains relatively restricted functions; a high-capacity class can reproduce a wider variety of patterns, including irregular ones. Capacity is therefore not synonymous with quality: the extra possibilities may represent genuine structure or sample-specific noise.
+
+The operational capacity parameter depends on the model:
+\begin{itemize}
+  \item for polynomial regression, increasing the degree increases capacity;
+  \item for $k$-nearest neighbors, decreasing $k$ increases capacity because predictions become more local;
+  \item for ridge regression with a fixed feature set, decreasing the penalty $\alpha$ increases effective capacity;
+  \item for a decision tree, increasing permitted depth or the number of leaves increases capacity.
+\end{itemize}
+Raw parameter count is only one possible proxy. The size of the available function class, the complexity of the particular fitted solution, and the effective capacity after regularization are different objects. This distinction becomes essential beyond the interpolation threshold.
+
 \subsection{The classical picture}
 
 In the classical regime, increasing flexibility often has opposing effects:
@@ -283,6 +371,18 @@ This is a tendency, not a theorem that every bias curve must decrease monotonica
 \subsection{Polynomial regression}
 
 For polynomial regression, degree is a simple flexibility parameter. A low degree may be unable to approximate an oscillatory $f$, producing high bias and relatively stable fitted curves. A high degree can interpolate or nearly interpolate a small noisy sample; small changes in the sample may then cause large changes between observed points, especially near boundaries. That is high variance.
+
+To make the phrase ``fit the noise'' precise, write the observed responses as
+\begin{equation}
+  Y_i=f(X_i)+\varepsilon_i.
+\end{equation}
+A sufficiently flexible interpolating polynomial satisfies
+\begin{equation}
+  \widehat f_{\mathcal D}(X_i)=Y_i=f(X_i)+\varepsilon_i
+\end{equation}
+at every training input. If one observation is unusually high only because its realized $\varepsilon_i$ is positive, the fitted curve may create a local rise to reach it. A new dataset contains different noises and can therefore produce a very different high-degree curve. The resulting sensitivity across datasets is precisely model variance.
+
+A lower-degree polynomial cannot follow every displacement. It may leave nonzero training residuals while capturing the common trend $f$. This can be beneficial because the particular training noises do not repeat in future data. Nevertheless, interpolation alone is not a proof of poor generalization: in a highly over-parameterized regime there may be many interpolating solutions, and the algorithm used to select among them matters. Section~\ref{sec:double-descent} develops this qualification.
 
 Monomial bases at high degree are often numerically ill conditioned. An extreme curve may therefore reflect both statistical variance and numerical instability. Rescaling inputs, using an orthogonal polynomial basis, or applying ridge regularization can improve numerical behavior. Such changes do not alter the conceptual decomposition, but they can alter the actual learning algorithm and therefore its measured bias and variance.
 
@@ -302,6 +402,14 @@ If the selected neighbors and their input locations are treated as fixed and the
   \operatorname{Var}(\widehat f_k(x)\mid X_1,\ldots,X_n)
   =\frac{\sigma^2}{k}.
 \end{equation}
+This follows because the average contains $k$ independent noise terms:
+\begin{equation*}
+  \operatorname{Var}\left(\frac{1}{k}\sum_{i\in N_k(x)}\varepsilon_i\right)
+  =\frac{1}{k^2}\sum_{i\in N_k(x)}\operatorname{Var}(\varepsilon_i)
+  =\frac{k\sigma^2}{k^2}.
+\end{equation*}
+With $k=1$, the prediction inherits all the selected neighbor's noise. With $k=20$, independent noise is strongly averaged, but the neighborhood may extend far enough that values of $f$ different from $f(x)$ are mixed together. This is the local form of the bias-variance trade-off.
+
 The conditional bias is approximately the difference between $f(x)$ and the average of $f$ over the neighbor locations. With random training inputs, additional variability comes from the random neighbor locations themselves.
 
 \subsection{Why more data usually reduces variance}
@@ -320,7 +428,11 @@ Geman et al. interpret feedforward neural networks as nonparametric regression e
 
 They emphasize that this is fundamentally a sample-size problem. Faster hardware can optimize a flexible model more quickly, but computation alone does not create information absent from the training sample.
 
+For example, suppose only a few observations lie in a neighborhood of $x$. A highly local estimator is being asked to infer detailed structure from very little information, so its answer can change substantially when those few observations change. Increasing computation does not reveal the unobserved local responses. One must instead collect more relevant data or impose structure that lets information be shared across locations.
+
 Their term \emph{smoothing parameter} covers quantities such as the number of neighbors, kernel bandwidth, and, in their neural-network discussion, the number of hidden units. Smoothing introduces regularity and thus some bias to control variance. They discuss cross-validation as a data-driven method for selecting smoothing and regularization as a way of encoding a preference for particular functions.
+
+Smoothing deliberately lets nearby or structurally related inputs influence one another. Increasing $k$ in $k$-NN averages more responses; increasing a kernel bandwidth averages over a wider region; increasing a regularization penalty suppresses rapidly changing or weakly supported directions. All three reduce sensitivity to individual observations, but can also erase genuine fine-scale structure. The useful amount of smoothing depends on both sample size and the regularity of the unknown function.
 
 An important historical qualification is needed. The paper predates modern large-scale deep learning. Its claim that difficult learning problems require strong prior representations remains influential, but modern systems may acquire useful representations from large datasets, pretraining, architecture, optimization, and augmentation. These mechanisms are forms of inductive bias; they do not constitute learning without assumptions.
 
@@ -344,6 +456,17 @@ The squared error of the probability estimator $\widehat\eta$ has the standard a
 \end{equation}
 which depends only on which side of the threshold the prediction lies.
 
+The notation distinguishes an individual loss from its expectation. For one realized label $y$, $L_{01}(y,g(x))$ is either zero or one. The conditional risk
+\begin{equation}
+  \R_{01}(g\mid x)
+  =\mathbb E[L_{01}(Y,g(x))\mid X=x]
+\end{equation}
+is the probability of error among all possible observations having the same input $x$. The integrated risk
+\begin{equation}
+  \R_{01}(g)=\mathbb E_X[\R_{01}(g\mid X)]
+\end{equation}
+is the population-wide probability of misclassification. A finite test-set error estimates this last quantity but is not identical to the unknown population expectation.
+
 \subsection{Conditional classification risk and the Bayes classifier}
 
 For any deterministic class prediction $g(x)\in\{0,1\}$,
@@ -353,6 +476,14 @@ For any deterministic class prediction $g(x)\in\{0,1\}$,
   &=\eta(x)\ind\{g(x)=0\}
     +(1-\eta(x))\ind\{g(x)=1\}.
 \end{align}
+The second equality is simply a compact representation of two cases. If $g(x)=0$, an error occurs exactly when $Y=1$, whose conditional probability is $\eta(x)$. If $g(x)=1$, an error occurs when $Y=0$, whose probability is $1-\eta(x)$. Thus
+\begin{equation*}
+  \R_{01}(g\mid x)
+  =\begin{cases}
+    \eta(x), & g(x)=0,\\
+    1-\eta(x), & g(x)=1.
+  \end{cases}
+\end{equation*}
 This is minimized by the Bayes classifier
 \begin{equation}
   g^{*}(x)=\ind\{\eta(x)\geq 1/2\},
@@ -363,6 +494,8 @@ whose irreducible conditional classification error is
 \end{equation}
 Unlike Gaussian regression noise, this quantity is not generally denoted $\sigma^2$.
 
+For example, if $\eta(x)=0.8$, predicting class 1 has conditional error $0.2$, whereas predicting class 0 has error $0.8$. Bayes therefore selects class 1, but it still makes an error in the $20\%$ of outcomes for which $Y=0$. This remaining $0.2$ is irreducible for deterministic classification using only $x$. If $\eta(x)=0.5$, neither class is preferable and the minimum conditional error is $0.5$.
+
 The excess conditional zero-one risk has a particularly informative form:
 \begin{equation}
   \R_{01}(g\mid x)-\R_{01}^{*}(x)
@@ -370,6 +503,26 @@ The excess conditional zero-one risk has a particularly informative form:
   \label{eq:excess01}
 \end{equation}
 To verify it, consider separately $\eta(x)\geq 1/2$ and $\eta(x)<1/2$. If $g$ agrees with the Bayes decision, the difference is zero. If it chooses the opposite class, the two conditional risks differ by $|2\eta(x)-1|$.
+
+The verification can be written explicitly. When $\eta(x)\geq 1/2$, Bayes predicts 1 and has risk $1-\eta(x)$. If $g$ instead predicts 0, then
+\begin{equation*}
+  \R_{01}(g\mid x)-\R_{01}^{*}(x)
+  =\eta(x)-(1-\eta(x))
+  =2\eta(x)-1.
+\end{equation*}
+When $\eta(x)<1/2$, Bayes predicts 0 and has risk $\eta(x)$. If $g$ instead predicts 1, then
+\begin{equation*}
+  \R_{01}(g\mid x)-\R_{01}^{*}(x)
+  =(1-\eta(x))-\eta(x)
+  =1-2\eta(x).
+\end{equation*}
+Both cases equal $|2\eta(x)-1|$. The indicator in equation~\eqref{eq:excess01} makes this cost zero whenever $g$ agrees with Bayes.
+
+The factor
+\begin{equation}
+  |2\eta(x)-1|=2|\eta(x)-1/2|
+\end{equation}
+is a decision margin. If $\eta(x)=0.51$, choosing the wrong side of the threshold increases conditional risk by only $0.02$. If $\eta(x)=0.90$, the same disagreement increases risk by $0.80$. Errors near an intrinsically ambiguous boundary are therefore less costly than errors where one class is overwhelmingly more likely.
 
 \subsection{Why the regression identity does not carry over}
 
@@ -428,6 +581,24 @@ At a test vector $x_0$, the prediction is linear in $y$:
 \end{equation}
 Increasing $\alpha$ shrinks directions associated with small eigenvalues of $X^{\mathsf T}X$. This typically lowers variance, especially for ill-conditioned polynomial features, while introducing estimation bias. The optimal $\alpha$ balances the two.
 
+To interpret the reference to eigenvalues, imagine rotating the coefficient coordinates into directions in which $X^{\mathsf T}X$ is diagonal. If one direction has eigenvalue $\lambda_j$, ridge multiplies the corresponding unregularized component by a factor of the form
+\begin{equation}
+  \frac{\lambda_j}{\lambda_j+\alpha}.
+\end{equation}
+A small $\lambda_j$ describes a direction that the observed data constrain weakly. Its fitted coefficient can change greatly in response to small perturbations, so ridge shrinks it strongly. Well-supported directions with large $\lambda_j$ are changed less. This explains how ridge stabilizes ill-conditioned high-degree polynomial fits without literally removing the high-degree columns.
+
+\subsection{Simplifying a flexible fitted model}
+
+There are several meanings of ``simplify the model,'' and they should not be conflated. In the assignment, the most direct method is to compare complete polynomial models of degrees $0$ through $15$ by validation and select one degree. If degree five is selected, the final model retains the hierarchy
+\begin{equation}
+  1,x,x^2,\ldots,x^5.
+\end{equation}
+Keeping a high-order term while arbitrarily deleting lower-order terms is usually avoided unless subject-matter structure justifies it.
+
+A second strategy is to retain a rich feature set and reduce its effective complexity through regularization. Ridge shrinks coefficients continuously but generally does not set them exactly to zero. An $\ell_1$ penalty, as in the Lasso, can set some coefficients to zero and therefore perform a form of feature selection.
+
+Simply deleting the numerically smallest monomial coefficients is unreliable. The magnitude of $\beta_j$ depends on the scaling of $x^j$, and polynomial columns can be strongly correlated. A term such as $0.001x^{15}$ may be influential over a sufficiently large input scale, while correlated terms can distribute one effect across several coefficients. Any data-driven simplification must therefore be performed inside the validation procedure and the reduced model should be refitted and evaluated independently.
+
 \section{Double descent and the interpolation regime}
 \label{sec:double-descent}
 
@@ -443,6 +614,15 @@ Belkin et al. organize classical and modern behavior on one capacity axis:
 
 The term ``double descent'' refers to the resulting test-risk curve: a first descent, a rise near interpolation, and a second descent beyond interpolation.
 
+Consider a concrete but illustrative experiment with $n=100$ noisy training observations. A two-parameter model may have training risk $0.40$ and test risk $0.42$ because it cannot represent the signal. With twenty effective parameters, these values might fall to $0.12$ and $0.15$. Near eighty parameters, training risk might fall to $0.02$ while test risk rises to $0.25$ as the model begins to track sample-specific noise. At the smallest capacity capable of exact fitting, training risk reaches zero and test risk may peak, for example at $0.60$. Far beyond that threshold, training risk remains zero while test risk may fall again, perhaps to $0.22$ and then $0.13$. These numbers are illustrative rather than universal; their purpose is to identify the four regimes on the capacity axis.
+
+The interpolation threshold is defined by the training constraints, not by a particular parameter count in every model. For squared-loss regression, an interpolating solution satisfies
+\begin{equation}
+  \widehat f(X_i)=Y_i
+  \qquad\text{for every }i=1,\ldots,n,
+\end{equation}
+and therefore has zero training loss. Since $Y_i=f(X_i)+\varepsilon_i$, interpolation reproduces both signal and the realized training noise at the observed inputs.
+
 \subsection{Why more parameters can lead to a simpler fitted function}
 
 When many interpolating solutions exist, the learning algorithm must select one. In the random-feature models studied by Belkin et al., the selected solution is the interpolant with minimum coefficient norm. Increasing the number of available features can make it possible to satisfy the same interpolation constraints with a smaller norm and a smoother function. Thus:
@@ -452,6 +632,23 @@ When many interpolating solutions exist, the learning algorithm must select one.
   \text{more complex selected predictor}.
 \end{equation*}
 The class size, the effective complexity of the selected solution, and the inductive bias of the algorithm are distinct notions.
+
+The existence of many interpolants can be seen without neural networks. Suppose a polynomial $p(x)$ passes through observations at $x=0,1,2$. Then, for any constant $c$,
+\begin{equation}
+  p_c(x)=p(x)+c\,x(x-1)(x-2)
+\end{equation}
+passes through exactly the same observations, because the added term is zero at all three training inputs. The functions can nevertheless behave very differently between and beyond those inputs. Equal training error therefore does not imply equal test behavior.
+
+In over-parameterized linear regression the same idea appears as
+\begin{equation}
+  X\beta=y.
+\end{equation}
+When there are more parameters than independent constraints, this equation can have infinitely many solutions. An algorithm may select the minimum-norm interpolant
+\begin{equation}
+  \widehat\beta
+  =\arg\min_{\beta:X\beta=y}\|\beta\|_2.
+\end{equation}
+Near the interpolation threshold, there may be just enough freedom to satisfy every noisy constraint, requiring a highly unstable solution. With much more freedom, the same constraints may be shared among many directions and a lower-norm solution may be available. This is the intuition behind the possible second descent; it is not a guarantee for arbitrary polynomial bases or optimization procedures.
 
 For neural networks, optimization can impose implicit regularization: among many zero-training-error solutions, gradient-based training may favor particular norms, margins, or other structural properties. Early stopping adds an explicit dependence on the training trajectory. Architecture, initialization, augmentation, and preprocessing also change the effective hypothesis space.
 
@@ -468,27 +665,70 @@ The assignment's degrees $0$ through $15$ primarily illustrate the classical tra
 \section{Cross-validation when the true function is unknown}
 \label{sec:cv}
 
-In simulations, $f$ is known, so true pointwise bias and variance can be estimated by repeated sampling. In real applications, there is only one observed dataset and $f$ is unknown. Bias and variance are then latent properties of the learning procedure.
+In simulations, $f$ is known and new datasets can be generated, so true pointwise bias and variance can be approximated directly. In a real application, only one training dataset is observed and $f$ is unknown. Bias and variance remain well-defined properties of the procedure under hypothetical repeated sampling, but they are latent: the available data do not reveal them separately without additional assumptions. Model selection therefore targets total predictive risk rather than trying to minimize an unobservable component in isolation.
 
-In $K$-fold cross-validation, the data are partitioned into $K$ folds. For each fold, the model is trained on the other $K-1$ folds and evaluated on the held-out fold. The scores are averaged to approximate generalization error. Cross-validation selects the model with the smallest estimated error, not the model with the smallest bias or variance separately.
+\subsection{A concrete five-fold example}
 
-If the selected degree varies greatly across repeated datasets, this means the selection problem itself has high sampling variability. Typical causes include:
-\begin{itemize}
-  \item the validation-error curve is flat near its minimum;
-  \item $n$ is small or noise is large;
-  \item several degrees have genuinely similar risk;
-  \item the split into folds adds variability;
-  \item high-degree fits occasionally become extremely unstable.
-\end{itemize}
+Suppose $n=100$ observations are available. Polynomial degrees $1$ through $15$ are candidates. Five-fold cross-validation divides the observations into five groups of approximately twenty. For a fixed degree, the procedure is:
+\begin{enumerate}
+  \item fit the model on folds 2--5 and evaluate it on fold 1;
+  \item fit a new model on folds 1, 3, 4, and 5 and evaluate it on fold 2;
+  \item repeat until every fold has served once as validation data;
+  \item average the five validation losses.
+\end{enumerate}
+The entire sequence is repeated for every candidate degree. If degrees 3 through 7 produce estimated risks $0.124$, $0.117$, $0.115$, $0.116$, and $0.119$, ordinary cross-validation selects degree 5 because $0.115$ is smallest.
 
-Instability does not necessarily mean that cross-validation is useless. The selected degree may be unstable while the achieved test errors are similar. Therefore, report both the distribution of selected degrees and, if possible, the corresponding error curve.
+This calculation estimates total generalization error. It does not reveal that degree 5 has the smallest bias or the smallest variance separately. Under squared loss, cross-validation approximately compares the complete sum
+\begin{equation*}
+  \text{squared bias}+\text{model variance}+\text{irreducible noise},
+\end{equation*}
+with finite-sample uncertainty added by the validation procedure itself.
 
-Every data-dependent modeling step must occur inside each training fold. Performing supervised feature selection on the full dataset before cross-validation leaks information from validation folds and makes the estimated error optimistic. The final test set must also remain separate from hyperparameter selection.
+\subsection{Why the selected degree can be unstable}
+
+Compare two hypothetical validation curves near their minima. In the first case, degrees 4, 5, and 6 have errors
+\begin{equation*}
+  0.30,\qquad 0.10,\qquad 0.28.
+\end{equation*}
+Degree 5 is separated clearly from its competitors, so small perturbations are unlikely to change the selection. In the second case the errors are
+\begin{equation*}
+  0.117,\qquad 0.115,\qquad 0.116.
+\end{equation*}
+The curve is nearly flat. A new dataset or another assignment of observations to folds can easily change which value is smallest, even though the predictive performance of all three degrees is practically the same.
+
+Consequently, a sequence of repeated experiments might select degrees
+\begin{equation*}
+  5,\ 4,\ 6,\ 5,\ 7,\ 4,\ 6,\ldots
+\end{equation*}
+without producing comparably large changes in test error. Hyperparameter instability and predictive instability are different claims. Typical causes of selection variability include a flat validation curve, small $n$, large noise, genuinely similar candidate risks, randomness in fold construction, and occasional numerical instability of high-degree fits. Exercise 5 should therefore report both the frequency of selected degrees and the validation-error curves or achieved errors when possible.
+
+\subsection{Every learned step belongs inside the folds}
+
+A validation fold must imitate data that were unavailable during training. Suppose one wants to select the five features most correlated with the response. The following procedure is invalid:
+\begin{enumerate}
+  \item use all observations, including future validation folds, to choose five features;
+  \item cross-validate models using only those preselected features.
+\end{enumerate}
+The validation responses have already influenced which features were retained. This leakage makes the estimated risk optimistic even though the final regression coefficients were not fitted on the held-out observations.
+
+The correct procedure repeats feature selection separately inside every training fold, fits the model using only that fold's training portion, and then applies the resulting transformation and model to the untouched validation fold. The same rule applies to supervised feature selection, normalization parameters, missing-value imputation, dimensionality reduction, and hyperparameter tuning: if a quantity is learned from data, it must be learned without access to the fold on which it will be evaluated.
+
+Finally, cross-validation used to choose a degree is itself part of model selection. A separate test set, if available, must remain untouched until the degree and every other modeling choice have been fixed. Cross-validation answers ``which procedure should be selected?''; the final test set estimates how the selected procedure performs on genuinely unseen data.
 
 \section{Nonuniform inputs and heteroscedastic noise}
 \label{sec:hetero}
 
-Suppose training inputs follow Beta$(2,5)$ rather than a uniform distribution. This density is concentrated near the left part of $[0,1]$ and supplies few observations near $x=1$. Flexible estimators are therefore less constrained near the right boundary, so their pointwise variance often concentrates there. Boundary effects can make polynomial fits particularly unstable.
+This exercise changes two different parts of the data-generating process. First, the input distribution determines where observations are available. Second, the conditional noise distribution determines how variable the response is at each location. Their effects should be analyzed separately before being combined.
+
+\subsection{Nonuniform inputs and boundary instability}
+
+Suppose training inputs follow Beta$(2,5)$ rather than a uniform distribution. This density is concentrated near the left part of $[0,1]$ and supplies few observations near $x=1$. A typical sample may contain many inputs around $0.1$--$0.4$ and only one or two above $0.8$.
+
+At an interior location, nearby observations can lie on both sides of the prediction point and constrain the level, slope, and curvature of a fitted polynomial. Near the right boundary, there are no observations with $x>1$, and the Beta design may provide few observations even immediately to the left. A flexible polynomial can then rise or fall sharply near $x=1$ without paying a large training-error penalty. If a rare rightmost observation moves because of noise, the fitted boundary behavior may change dramatically.
+
+Across repeated datasets, predictions near a well-sampled point might be $0.48$, $0.51$, and $0.49$, whereas predictions near $x=0.95$ might be $1.2$, $-0.3$, and $2.0$. The latter have much greater pointwise model variance. This is the meaning of the statement that flexible estimators are less constrained near the right boundary. It is a property of the sampling design and fitted procedure, not yet a statement about the response-noise variance.
+
+\subsection{Heteroscedastic outcome noise}
 
 Now let
 \begin{equation}
@@ -499,6 +739,20 @@ The irreducible pointwise noise is no longer $\sigma^2$ but
 \begin{equation}
   \boxed{\sigma^2(x)=\sigma^2(0.5+2x)^2.}
 \end{equation}
+This quantity increases strongly across the interval:
+\begin{align*}
+  \sigma^2(0)&=0.25\sigma^2,\\
+  \sigma^2(0.5)&=2.25\sigma^2,\\
+  \sigma^2(1)&=6.25\sigma^2.
+\end{align*}
+Thus observations close to $x=1$ are intrinsically noisier even if the regression function were known. The right side can now be difficult for two separate reasons: sparse inputs can increase model variance, while heteroscedasticity increases irreducible outcome noise. The two quantities are
+\begin{equation*}
+  \VarD(\widehat f_{\mathcal D}(x))
+  \quad\text{and}\quad
+  \operatorname{Var}(Y\mid X=x)=\sigma^2(x),
+\end{equation*}
+and should not be merged conceptually.
+
 The correct verification is therefore
 \begin{equation}
   \operatorname{Err}(x)
@@ -506,7 +760,9 @@ The correct verification is therefore
   +\operatorname{Variance}(x)
   +\sigma^2(0.5+2x)^2.
 \end{equation}
-If quantities are averaged over a uniform test grid, the corresponding average noise term is
+\subsection{Why the test-input distribution changes the average}
+
+Pointwise error describes one location. An integrated error requires weights over locations, and those weights encode the target population. If quantities are averaged over a uniform test grid, the corresponding average noise term is
 \begin{align}
   \int_0^1 \sigma^2(0.5+2x)^2\,dx
   &=\sigma^2\int_0^1(0.25+2x+4x^2)\,dx\\
@@ -526,7 +782,7 @@ which is different. Using $\mathbb E[X]=2/7$ and $\mathbb E[X^2]=2\cdot3/(7\cdot
   &=\sigma^2\left(\frac14+\frac47+\frac37\right)
   =\frac54\sigma^2.
 \end{align}
-This calculation illustrates why the test distribution must be stated.
+The uniform value is approximately $2.58\sigma^2$, whereas the Beta-weighted value is $1.25\sigma^2$. The uniform average gives every part of $[0,1]$ equal weight, including the highly noisy right side. The Beta$(2,5)$ average assigns little probability to that region, so its contribution to population-wide risk is smaller. Neither average is intrinsically correct: the appropriate one depends on whether the scientific target treats locations uniformly or predicts future observations drawn from the Beta population. This is why the test distribution must always be stated.
 
 \section{Model variance, ensembles, and predictive uncertainty}
 
@@ -543,20 +799,50 @@ If $B$ fitted predictors have common variance $v$ and pairwise correlation $\rho
 \begin{equation}
   \operatorname{Var}\left(\frac{1}{B}\sum_{b=1}^{B}\widehat f_b(x)\right)
   =v\left(\rho+\frac{1-\rho}{B}\right).
+  \label{eq:ensemble-variance}
 \end{equation}
-This explains bagging: averaging reduces the uncorrelated portion of variance, but perfectly correlated errors cannot be averaged away. Bootstrap refitting can also approximate the sampling distribution of predictions, although its validity depends on the data structure and estimator.
+To derive this identity, note that equal variances and pairwise correlation imply
+\begin{equation*}
+  \operatorname{Var}(\widehat f_b(x))=v,
+  \qquad
+  \operatorname{Cov}(\widehat f_b(x),\widehat f_{b'}(x))=\rho v
+  \quad (b\neq b').
+\end{equation*}
+The variance of a sum contains both individual variances and covariances. There are $B$ variance terms and $B(B-1)/2$ unordered pairs, so
+\begin{align*}
+  \operatorname{Var}\left(\frac{1}{B}\sum_{b=1}^{B}\widehat f_b(x)\right)
+  &=\frac{1}{B^2}
+    \left[Bv+B(B-1)\rho v\right]\\
+  &=v\left(\rho+\frac{1-\rho}{B}\right).
+\end{align*}
+The result can be read as
+\begin{equation}
+  \underbrace{v\rho}_{\text{shared component}}
+  +
+  \underbrace{\frac{v(1-\rho)}{B}}_{\text{unshared component reduced by averaging}}.
+\end{equation}
+
+If $\rho=0$, the models fluctuate independently and the ensemble variance is $v/B$. With $B=100$ and $v=1$, it falls to $0.01$. If $\rho=1$, all predictions move together and averaging changes nothing: the variance remains $v$. In the intermediate example $B=100$, $v=1$, and $\rho=0.2$, equation~\eqref{eq:ensemble-variance} gives
+\begin{equation*}
+  0.2+\frac{0.8}{100}=0.208.
+\end{equation*}
+The independent portion has nearly disappeared, but the common component creates a variance floor. Indeed, as $B\to\infty$, the variance approaches $v\rho$, not zero.
+
+This explains bagging. Bootstrap samples differ, so unstable base learners such as deep decision trees can make partially different errors that average out. However, all samples originate from the same observed dataset and overlap substantially, so the fitted models remain correlated. Random forests introduce additional feature randomness partly to reduce this correlation. An ensemble benefits from individually useful predictors whose errors are not perfectly aligned; repeating an identical model many times provides no benefit.
+
+Bootstrap refitting can also approximate the sampling distribution of predictions by repeatedly resampling the observed data and refitting the complete procedure. This is an approximation to hypothetical new samples from the population, not literal access to those samples. Its validity depends on the data structure, dependence assumptions, estimator, and sample size.
 
 \section{Comparison of the sources}
 \label{sec:sources}
 
 \paragraph{Hastie, Tibshirani, and Friedman (2009).}
-A reference textbook used here for the exact squared-loss decomposition, model assessment, the zero-one-loss warning, and cross-validation. It is an authoritative scholarly synthesis, although its classical framework predates the modern double-descent literature.
+A reference textbook used here for the exact squared-loss decomposition, model assessment, the zero-one-loss warning, and cross-validation. Its main role is to establish the classical statistical framework. It is an authoritative scholarly synthesis, although that framework predates the modern double-descent literature.
 
 \paragraph{Geman, Bienenstock, and Doursat (1992).}
-A peer-reviewed journal article used for nonparametric estimation, sample-size dependence, smoothing, regularization, and representation. It is foundational and mathematically careful, but its conclusions about neural networks are historically situated.
+A peer-reviewed journal article used for nonparametric estimation, sample-size dependence, smoothing, regularization, and representation. Its main contribution here is to frame bias and variance as a finite-information dilemma, rather than merely a choice between particular algorithms. It is foundational and mathematically careful, but its conclusions about neural networks are historically situated.
 
 \paragraph{Belkin, Hsu, Ma, and Mandal (2019).}
-A peer-reviewed research article used for the interpolation threshold, double descent, minimum-norm solutions, and implicit inductive bias. It provides primary modern evidence and a unifying proposal, not a theorem that every learning system exhibits double descent.
+A peer-reviewed research article used for the interpolation threshold, double descent, minimum-norm solutions, and implicit inductive bias. Its role is to extend the capacity axis beyond the classical optimum and distinguish raw parameter count from the complexity of the selected interpolant. It provides primary modern evidence and a unifying proposal, not a theorem that every learning system exhibits double descent.
 
 \paragraph{scikit-learn documentation (accessed 2026).}
 Maintained pedagogical and technical documentation used for concrete accounts of underfitting, overfitting, learning curves, validation curves, and practical levers. It is official and reproducible, but it is not a peer-reviewed theoretical source.
@@ -589,7 +875,7 @@ The terms are squared systematic error, sensitivity to the training set, and out
 
 \subsection*{2. What is random in the expectations?}
 
-For bias and variance, redraw the training set of fixed size from the same population and refit the entire learning procedure. For total test error, also draw a fresh test response noise. For integrated risk, additionally draw or average over the test input $X$.
+For bias and variance at a fixed $x$, redraw the training set of fixed size from the same population and refit the entire learning procedure. For total pointwise test error, also draw a fresh response noise independent of the training data. For integrated risk, additionally draw or average over the test input $X$. In a real application these repetitions remain the theoretical definition even though only one training dataset is observed. After conditioning on one already fitted model, the observed training set is fixed and only future test inputs and responses remain random.
 
 \subsection*{3. Does the same decomposition exist for zero-one loss?}
 
@@ -628,6 +914,13 @@ To reduce variance: increase the amount of relevant training data; strengthen sm
   \item Equating low model variance with complete predictive certainty.
   \item Applying supervised preprocessing before cross-validation rather than separately inside each fold.
   \item Reporting only a selected hyperparameter without uncertainty, the validation curve, or its frequency across repeated datasets.
+  \item Confusing an individual loss $L(Y,g(X))$ with its population expectation $\R(g)$ or with a finite test-set average $\widehat\R(g)$.
+  \item Treating a fitted model from one observed dataset as if it were the same object as the learning procedure evaluated over repeated datasets.
+  \item Assuming that real data remove the conceptual randomness of $\mathcal D$. They provide one realization of a sampling process; they do not make repeated-sampling bias and variance directly observable.
+  \item Equating the number of parameters with effective complexity in every regime. Regularization and the algorithm's choice among many solutions also matter.
+  \item Deleting polynomial terms solely because their fitted coefficients are numerically small, without accounting for scaling, collinearity, hierarchy, and validation.
+  \item Interpreting hyperparameter instability as proof of predictive instability. Several degrees can be selected inconsistently while having nearly equal risk.
+  \item Expecting infinitely many highly correlated ensemble members to eliminate variance. Their shared component remains as $B$ increases.
 \end{enumerate}
 
 \section{A balanced answer to the final discussion question}

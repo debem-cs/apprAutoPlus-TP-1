@@ -1,0 +1,67 @@
+\documentclass[10pt,a4paper]{article}
+
+\usepackage[T1]{fontenc}
+\usepackage[utf8]{inputenc}
+\usepackage[french]{babel}
+\usepackage{lmodern}
+\usepackage{amsmath,amssymb}
+\usepackage[a4paper,margin=1.25cm,top=1.0cm,bottom=1.0cm]{geometry}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage{titlesec}
+
+\setlist{nosep,leftmargin=*}
+\titlespacing*{\subsection}{0pt}{4pt}{2pt}
+\titleformat*{\subsection}{\normalsize\bfseries}
+\setlength{\parindent}{0pt}
+\setlength{\parskip}{2pt}
+\pagestyle{empty}
+
+\begin{document}
+
+\begin{center}
+{\large\textbf{TP Biais-variance -- Partie 1 : fiche de synthèse}}\\[1pt]
+Pedro de Bem \& Amanda Paula Fontenele -- CentraleSupélec, Apprentissage automatique, 2026--2027
+\end{center}
+\vspace{-6pt}
+
+\subsection*{Sources utilisées}
+\begin{itemize}
+  \item [HTF] Hastie, Tibshirani, Friedman, \emph{The Elements of Statistical Learning}, 2\textsuperscript{e} éd., Springer, 2009, chap.~7. \emph{Manuel de référence.} Livre très cité, écrit par des statisticiens reconnus et relu par l'éditeur : on le considère comme fiable pour la partie « classique ».
+  \item [GBD] Geman, Bienenstock, Doursat, « Neural Networks and the Bias/Variance Dilemma », \emph{Neural Computation} 4(1), 1992. \emph{Article de recherche} (revue à comité de lecture). Fiable et assez détaillé mathématiquement, mais ancien : ce qu'il dit sur les réseaux de neurones date d'avant le deep learning.
+  \item [BHMM] Belkin, Hsu, Ma, Mandal, « Reconciling modern machine-learning practice and the classical bias--variance trade-off », \emph{PNAS} 116(32), 2019. \emph{Article de recherche} (revue à comité). Source récente et sérieuse, mais elle montre surtout des expériences (MNIST, etc.), pas une preuve que la double descente arrive toujours.
+  \item [SKL] Documentation scikit-learn (v1.9), exemple « Underfitting vs. Overfitting », consultée le 4/10/2026. \emph{Ressource pédagogique en ligne.} Officielle et reproductible (le code est fourni), mais pas relue par des pairs et sans aucune théorie.
+\end{itemize}
+
+\subsection*{1. Décomposition de l'erreur quadratique en un point $x$}
+Avec $y = f(x) + \varepsilon$, $\mathbb{E}[\varepsilon]=0$, $\operatorname{Var}(\varepsilon)=\sigma^2$, et $\hat f_D$ le modèle appris sur le jeu $D$ :
+\[
+\mathbb{E}_{D,\varepsilon}\big[(y-\hat f_D(x))^2\big]
+= \underbrace{\big(f(x)-\mathbb{E}_D[\hat f_D(x)]\big)^2}_{\text{biais}^2}
++ \underbrace{\operatorname{Var}_D\big(\hat f_D(x)\big)}_{\text{variance}}
++ \underbrace{\sigma^2}_{\text{bruit}}
+\qquad\text{([HTF] éq.~7.9, [GBD] §3.1)}
+\]
+On l'obtient en écrivant $y-\hat f_D = (f-\mathbb{E}_D\hat f_D) + (\mathbb{E}_D\hat f_D - \hat f_D) + \varepsilon$ et en développant le carré : les doubles produits sont nuls en moyenne car $\mathbb{E}_D[\hat f_D - \mathbb{E}_D\hat f_D]=0$ et le bruit de test est indépendant de $D$.
+Le biais$^2$ mesure l'erreur systématique (la prédiction moyenne est loin de $f$, le modèle est trop simple). La variance mesure à quel point le modèle change quand on change de jeu d'entraînement. Le bruit $\sigma^2$ est irréductible : même en connaissant $f$ exactement, on ferait encore cette erreur en moyenne.
+
+\subsection*{2. Sur quoi porte l'espérance ?}
+Dans le biais et la variance, $x$ est fixé et c'est le jeu d'entraînement $D$ qui est aléatoire (on imagine tirer plein de jeux de même taille $n$ et réentraîner le même modèle à chaque fois). [GBD] le dit clairement : $\mathbb{E}_D$ est la moyenne « sur l'ensemble des $D$ possibles, à $N$ fixé ». Dans l'erreur totale, on ajoute en plus le bruit $\varepsilon$ du nouveau point de test. C'est pour ça que le TP tire $M=200$ jeux : en vrai on n'en a qu'un, donc biais et variance ne sont pas observables directement.
+
+\subsection*{3. Et pour la perte 0-1 en classification ?}
+Non, pas sous la forme « bruit + biais$^2$ + variance ». [HTF] (§7.3.1 et fig.~7.3) montre que l'erreur de classification n'est plus la somme des deux : biais et variance « interagissent ». Exemple du livre : si $P(Y=1\mid x)=0{,}9$ et que l'estimation moyenne vaut $0{,}6$, le biais$^2$ est grand mais on prédit quand même la bonne classe, donc l'erreur ne bouge pas. Ce qui compte, c'est de passer ou non du mauvais côté du seuil $1/2$. Dans l'exercice 7.2 (d'après Friedman 1997), biais et variance se combinent de façon multiplicative : si la prédiction moyenne est du mauvais côté du seuil, augmenter la variance peut même réduire l'erreur ! Il existe d'autres décompositions pour la perte 0-1, mais avec des définitions de biais et de variance différentes.
+
+\subsection*{4. La « double descente »}
+D'après [BHMM], quand on augmente la capacité du modèle (nombre de paramètres $N$), l'erreur de test suit d'abord la courbe en U classique, puis a un pic au seuil d'interpolation (le modèle a juste assez de paramètres pour passer par tous les points, erreur d'entraînement nulle, ex. $N \approx n$), et ensuite redescend quand on continue à ajouter des paramètres. Cette seconde descente apparaît dans le régime sur-paramétré (à droite du seuil), observé pour des random features, des réseaux de neurones et des forêts aléatoires. L'explication proposée : parmi toutes les solutions qui interpolent, l'algorithme choisit celle de plus petite norme, qui est plus « lisse ». Le nombre de paramètres mesure donc mal la complexité réelle.
+
+\subsection*{5. Leviers pratiques}
+Réduire la variance : (i) avoir plus de données d'entraînement ; (ii) régulariser (Ridge, augmenter $\alpha$) ou simplifier le modèle (degré plus bas, $k$ plus grand en $k$-NN).
+Réduire le biais : (i) prendre un modèle plus flexible (degré plus élevé, $k$ plus petit, plus de neurones) ; (ii) diminuer une régularisation trop forte ou ajouter de meilleures variables (features). Chaque levier peut augmenter l'autre terme, d'où l'intérêt de la validation croisée ([SKL]).
+
+\subsection*{Points où les sources divergent}
+\begin{itemize}
+  \item Notations. [HTF] écrit $\sigma_\varepsilon^2 + \mathrm{Bias}^2 + \mathrm{Var}$ avec un $\mathbb{E}$ sans indice, alors que [GBD] écrit $f(x;D)$ et $\mathbb{E}_D$. Surtout, [GBD] décompose l'erreur par rapport à $\mathbb{E}[y\mid x]$, donc sans le terme de bruit, et appelle « bias » directement le terme au carré. Le sujet du TP, lui, utilise $\hat f_D$ et $\mathbb{E}_{D,\varepsilon}$.
+  \item Fond. [BHMM] cite [HTF] p.~221 (« un modèle à erreur d'entraînement nulle est sur-ajusté et généralise mal ») pour le contredire avec la double descente. La décomposition reste vraie, c'est l'idée « plus de paramètres = plus de variance » qui ne l'est plus toujours. [SKL], de son côté, ne parle pas du tout de biais et de variance : il présente seulement sous-/sur-apprentissage (degrés 1, 4, 15) et l'erreur en validation croisée.
+\end{itemize}
+
+\end{document}
